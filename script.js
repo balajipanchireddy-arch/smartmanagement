@@ -873,3 +873,186 @@ function showReceipt(items, total, savings, count, mobile) {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ================================================================
+// FIREBASE CONFIG - YOUR CONFIG HERE
+// ================================================================
+const firebaseConfig = {
+    apiKey: "AIzaSyDxfTPMySvXDNkAF0-ruIvGhiV23H1GcVs",
+    authDomain: "myproject-facd5.firebaseapp.com",
+    databaseURL: "https://myproject-facd5-default-rtdb.firebaseio.com",
+    projectId: "myproject-facd5",
+    storageBucket: "myproject-facd5.firebasestorage.app",
+    messagingSenderId: "967008076076",
+    appId: "1:967008076076:web:e34160a72525210ba1ec89",
+    measurementId: "G-B7EX225NTR"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ================================================================
+// SYNC TO CONSUMER APP (Using Firebase)
+// ================================================================
+function syncToConsumer(mobile) {
+    const purchasedItems = products.filter(p => p.purchased);
+    
+    if (purchasedItems.length === 0) {
+        showToast('📭', 'Nothing to Sync', 'No purchased items to sync.', 'info');
+        return;
+    }
+    
+    // Validate mobile number
+    if (!mobile || mobile.length < 10) {
+        showToast('⚠️', 'Invalid Mobile', 'Please enter a valid 10-digit mobile number.', 'warning');
+        return;
+    }
+    
+    const fullMobile = '+91' + mobile;
+    const userRef = db.ref('users/' + fullMobile);
+    
+    // First, check if user exists
+    userRef.once('value').then(snapshot => {
+        const userData = snapshot.val();
+        
+        if (!userData) {
+            // Create new user
+            userRef.set({
+                name: 'User',
+                mobile: fullMobile,
+                registeredAt: Date.now(),
+                pantryItems: {}
+            });
+        }
+        
+        // Now add purchased items to pantry
+        const updates = {};
+        purchasedItems.forEach(item => {
+            const newItem = {
+                id: item.id,
+                name: item.name,
+                price: item.price || item.basePrice,
+                expiry: item.expiry.toISOString(),
+                purchaseDate: new Date().toISOString(),
+                discount: item.discount || 0,
+                syncedFromShop: true,
+                isConsumed: false,
+                alertSent: {
+                    '7d': false,
+                    '3d': false,
+                    '1d': false,
+                    'expired': false
+                }
+            };
+            
+            // Push to Firebase using unique key
+            const newItemRef = userRef.child('pantryItems').push();
+            updates[newItemRef.key] = newItem;
+        });
+        
+        // Save all items at once
+        userRef.child('pantryItems').update(updates).then(() => {
+            showToast('✅', 'Synced!', `${purchasedItems.length} items sent to ${fullMobile}`, 'success');
+            addLog('success', `🔄 Synced ${purchasedItems.length} items to ${fullMobile}`);
+            
+            // Mark items as synced
+            products.forEach(p => {
+                if (p.purchased) {
+                    p.synced = true;
+                    p.purchased = false;
+                }
+            });
+            saveData();
+            updateUI();
+        });
+    }).catch(error => {
+        console.error('Sync error:', error);
+        showToast('❌', 'Sync Failed', 'Could not connect to server.', 'danger');
+    });
+}
+
+// ================================================================
+// CHECKOUT (Updated with Firebase Sync)
+// ================================================================
+function checkout() {
+    if (cart.length === 0) {
+        showToast('⚠️', 'Empty Cart', 'Add some items first!', 'warning');
+        return;
+    }
+
+    const { total, savings } = getCartTotal();
+    const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+    
+    // Ask for customer mobile number
+    const mobile = prompt('Enter customer mobile number (10 digits):', '9876543210');
+    
+    if (!mobile || mobile.length < 10) {
+        showToast('⚠️', 'Mobile Required', 'Please enter a valid mobile number.', 'warning');
+        return;
+    }
+    
+    if (!/^\d{10}$/.test(mobile)) {
+        showToast('⚠️', 'Invalid Mobile', 'Please enter only 10 digits.', 'warning');
+        return;
+    }
+    
+    totalRevenue += total;
+    
+    cart.forEach(cartItem => {
+        const product = products.find(p => p.id === cartItem.id);
+        if (product) {
+            product.purchased = true;
+            product.price = cartItem.price;
+            product.discount = cartItem.discount;
+        }
+    });
+    
+    saveData();
+    showReceipt(cart, total, savings, itemCount, mobile);
+    addLog('success', `💰 Sale: $${total.toFixed(2)} (${itemCount} items) for ${mobile}`);
+    showToast('✅', 'Sale Complete!', `Total: $${total.toFixed(2)} | Saved: $${savings.toFixed(2)}`, 'success');
+    
+    // Sync to Firebase
+    setTimeout(() => {
+        syncToConsumer(mobile);
+    }, 1000);
+    
+    cart = [];
+    updateUI();
+}
+
+// ================================================================
+// RECEIPT MODAL (Updated with Mobile)
+// ================================================================
+function showReceipt(items, total, savings, count, mobile) {
+    lastReceipt = { items, total, savings, count };
+    
+    const modal = document.getElementById('receiptModal');
+    const container = document.getElementById('receiptItems');
+    document.getElementById('receiptTime').textContent = formatTime(new Date());
+    
+    let html = '';
+    html += `
+        <div style="text-align:center;font-size:12px;color:#4caf50;margin-bottom:8px;">
+            ✅ Synced to ${mobile}
+        </div>
+    `;
+    
+    items.forEach(item => {
+        const discountLabel = item.discount > 0 ? ` (${item.discount}% off)` : '';
+        html += `
+            <div class="receipt-item">
+                <span class="item-name">${item.name} x${item.quantity}${discountLabel}</span>
+                <span class="item-price">$${(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+    
+    document.getElementById('receiptTotal').textContent = `$${total.toFixed(2)}`;
+    document.getElementById('receiptDiscount').textContent = `$${savings.toFixed(2)} saved`;
+    document.getElementById('receiptItemCount').textContent = count;
+    
+    modal.classList.add('show');
+}
