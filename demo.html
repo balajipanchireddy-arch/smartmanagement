@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartShelf Pro - Complete POS System</title>
+    
+    <!-- External CDNs -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- QR & Barcode Scanner Library -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <style>
+        /* ================================================================
+           GLOBAL STYLES
+           ================================================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #f0f4f8;
+            padding: 15px;
+        }
+        
+        /* ================================================================
+           HEADER
+           ================================================================ */
+        .header {
+            background: linear-gradient(135deg, #1a3a5c, #2a5f7a);
+            color: white;
+            padding: 12px 22px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header-left h1 {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        
+        .header-left h1 i {
+            color: #4fc3f7;
+            margin-right: 8px;
+        }
+        
+        .live-badge {
+            background: #f44336;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            animation: pulse-badge 1.5s infinite;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .live-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse-dot 1s infinite;
+        }
+        
+        @keyframes pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        @keyframes pulse-dot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.5); } }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .clock-display {
+            background: rgba(255,255,255,0.15);
+            padding: 5px 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .clock-display i { margin-right: 5px; font-size: 13px; color: #4fc3f7; }
+        
+        .sound-toggle {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.3s;
+        }
+        
+        .sound-toggle:hover { background: rgba(255,255,255,0.2); }
+        .sound-toggle.muted { opacity: 0.5; }
+        
+        /* ================================================================
+           ADD PRODUCT SECTION
+           ================================================================ */
+        .add-product-section {
+            background: white;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .add-product-section h2 {
+            font-size: 15px;
+            color: #1a3a5c;
+            margin-bottom: 10px;
+        }
+        
+        .add-product-section h2 i { color: #2a5f7a; margin-right: 6px; }
+        
+        .form-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            flex: 1;
+            min-width: 110px;
+        }
+        
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .form-group input {
+            padding: 7px 10px;
+            border: 2px solid #dce3ec;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+            transition: 0.2s;
+        }
+        
+        .form-group input:focus { border-color: #2a5f7a; }
+        
+        .add-btn {
+            padding: 7px 20px;
+            background: linear-gradient(135deg, #1a3a5c, #2a5f7a);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            min-width: 80px;
+        }
+        
+        .add-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(26, 58, 92, 0.3);
+        }
+        
+        .add-btn i { margin-right: 5px; }
+        
+        .barcode-input-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        
+        .barcode-input-group input {
+            flex: 1;
+            padding: 7px 10px;
+            border: 2px solid #dce3ec;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+            transition: 0.2s;
+        }
+        
+        .barcode-input-group input:focus { border-color: #2a5f7a; }
+        
+        .barcode-input-group .scan-input-btn {
+            padding: 7px 14px;
+            background: #00695c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            white-space: nowrap;
+            transition: 0.3s;
+        }
+        
+        .barcode-input-group .scan-input-btn:hover { background: #00897b; }
+        
+        .scan-btn-group {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        
+        .qr-btn {
+            padding: 7px 16px;
+            background: linear-gradient(135deg, #6a1b9a, #8e24aa);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            min-width: 80px;
+        }
+        
+        .qr-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(106, 27, 154, 0.3);
+        }
+        
+        .qr-btn i { margin-right: 5px; }
+        
+        .barcode-scan-btn {
+            padding: 7px 16px;
+            background: linear-gradient(135deg, #00695c, #00897b);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            min-width: 80px;
+        }
+        
+        .barcode-scan-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 105, 92, 0.3);
+        }
+        
+        .barcode-scan-btn i { margin-right: 5px; }
+        
+        /* ================================================================
+           SCANNER DATA PREVIEW
+           ================================================================ */
+        .scanner-data-preview {
+            background: #f0f4f8;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 8px;
+            display: none;
+            border-left: 4px solid #6a1b9a;
+        }
+        
+        .scanner-data-preview.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .scanner-data-preview .preview-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 2px 0;
+        }
+        
+        .scanner-data-preview .preview-row .label {
+            color: #666;
+            font-weight: 600;
+        }
+        
+        .scanner-data-preview .preview-row .value {
+            color: #1a3a5c;
+            font-weight: 600;
+        }
+        
+        .scanner-data-preview .apply-btn {
+            margin-top: 8px;
+            padding: 6px 16px;
+            background: #2e7d32;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+        }
+        
+        .scanner-data-preview .apply-btn:hover { background: #388e3c; }
+        
+        /* ================================================================
+           SCANNER MODAL
+           ================================================================ */
+        .scanner-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 20000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .scanner-modal-overlay.show { display: flex; }
+        
+        .scanner-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 480px;
+            width: 95%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: modalIn 0.3s ease;
+        }
+        
+        .scanner-modal .scanner-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .scanner-modal .scanner-header h3 {
+            color: #1a3a5c;
+            font-size: 18px;
+        }
+        
+        .scanner-modal .scanner-header h3 i {
+            margin-right: 8px;
+        }
+        
+        .scanner-modal .scanner-header h3 .qr-icon { color: #6a1b9a; }
+        .scanner-modal .scanner-header h3 .barcode-icon { color: #00695c; }
+        
+        .scanner-modal .scanner-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+            padding: 0 8px;
+        }
+        
+        .scanner-modal .scanner-close:hover { color: #333; }
+        
+        .scanner-modal #scanner-reader {
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            min-height: 250px;
+            background: #000;
+        }
+        
+        .scanner-modal .scanner-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+        }
+        
+        .scanner-modal .scanner-info i { margin-right: 4px; }
+        
+        .scanner-modal .scanner-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        
+        .scanner-modal .scanner-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .scanner-modal .scanner-actions .stop-btn {
+            background: #e0e0e0;
+            color: #555;
+        }
+        
+        .scanner-modal .scanner-actions .stop-btn:hover { background: #d0d0d0; }
+        
+        .scanner-modal .scanner-actions .manual-btn {
+            background: #1a3a5c;
+            color: white;
+        }
+        
+        .scanner-modal .scanner-actions .manual-btn:hover { background: #2a5f7a; }
+        
+        .scanner-modal .scanner-actions .switch-btn {
+            background: #e8edf3;
+            color: #1a3a5c;
+        }
+        
+        .scanner-modal .scanner-actions .switch-btn:hover { background: #d0d9e6; }
+        
+        /* ================================================================
+           STATS
+           ================================================================ */
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 10px 14px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+            border-left: 4px solid #4fc3f7;
+        }
+        
+        .stat-card .number { font-size: 20px; font-weight: 700; color: #1a3a5c; }
+        .stat-card .label { color: #666; font-size: 11px; margin-top: 2px; }
+        .stat-card.warning { border-left-color: #ff9800; }
+        .stat-card.danger { border-left-color: #f44336; }
+        .stat-card.success { border-left-color: #4caf50; }
+        .stat-card.gold { border-left-color: #ffc107; }
+        
+        /* ================================================================
+           MAIN GRID
+           ================================================================ */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.9fr 1.1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 14px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .panel h2 {
+            font-size: 15px;
+            color: #1a3a5c;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #e8edf3;
+            padding-bottom: 6px;
+        }
+        
+        .panel h2 i { margin-right: 6px; color: #2a5f7a; }
+        
+        /* ================================================================
+           PRODUCT TABLE
+           ================================================================ */
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        .product-table th {
+            text-align: left;
+            padding: 4px 4px;
+            background: #f7f9fc;
+            color: #555;
+            font-weight: 600;
+            border-bottom: 2px solid #e0e5ec;
+            font-size: 10px;
+        }
+        
+        .product-table td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #eef2f7;
+        }
+        
+        .product-table tr:hover { background: #f8faff; }
+        .product-table .expired-row { background: #fff5f5 !important; }
+        .product-table .expiring-row { background: #fffbf0 !important; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+        }
+        
+        .status-fresh { background: #e8f5e9; color: #2e7d32; }
+        .status-expiring { background: #fff3e0; color: #e65100; }
+        .status-expired { background: #ffebee; color: #c62828; }
+        
+        .price-original {
+            text-decoration: line-through;
+            color: #999;
+            font-size: 9px;
+            margin-right: 2px;
+        }
+        
+        .price-discount { color: #d32f2f; font-weight: 700; font-size: 12px; }
+        .price-normal { font-weight: 600; color: #1a3a5c; }
+        
+        .countdown-timer {
+            font-size: 10px;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .countdown-timer.expired { color: #c62828; }
+        .countdown-timer.warning { color: #e65100; }
+        
+        .add-to-cart-btn {
+            background: #e3f2fd;
+            border: none;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            color: #0d47a1;
+            transition: 0.2s;
+        }
+        
+        .add-to-cart-btn:hover { background: #bbdefb; }
+        .add-to-cart-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        /* ================================================================
+           BILLING / CART
+           ================================================================ */
+        .billing-barcode-input {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .billing-barcode-input input {
+            flex: 1;
+            padding: 7px 10px;
+            border: 2px solid #dce3ec;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: 0.2s;
+        }
+        
+        .billing-barcode-input input:focus { border-color: #2a5f7a; }
+        
+        .billing-barcode-input button {
+            padding: 7px 14px;
+            background: #1a3a5c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        
+        .billing-barcode-input button:hover { background: #2a5f7a; }
+        
+        .quick-add-btns {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        
+        .quick-add-btns button {
+            padding: 4px 10px;
+            background: #e8edf3;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            color: #1a3a5c;
+            transition: 0.2s;
+        }
+        
+        .quick-add-btns button:hover { background: #d0d9e6; }
+        .quick-add-btns button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .cart-items {
+            max-height: 180px;
+            overflow-y: auto;
+            margin: 8px 0;
+        }
+        
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+        }
+        
+        .cart-item .item-info {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .cart-item .item-name { font-weight: 600; color: #333; }
+        .cart-item .item-discount { font-size: 10px; color: #e65100; }
+        .cart-item .item-price { font-weight: 700; color: #1a3a5c; }
+        .cart-item .remove-item {
+            background: none;
+            border: none;
+            color: #c62828;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 0 4px;
+        }
+        
+        .cart-item .remove-item:hover { color: #b71c1c; }
+        
+        .cart-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            font-weight: 700;
+            padding-top: 8px;
+            border-top: 2px solid #1a3a5c;
+            margin-top: 6px;
+        }
+        
+        .cart-total .total-amount { color: #1a3a5c; }
+        .cart-total .total-discount { font-size: 13px; color: #d32f2f; font-weight: 600; }
+        
+        .cart-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .cart-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .checkout-btn {
+            background: linear-gradient(135deg, #2e7d32, #43a047);
+            color: white;
+        }
+        
+        .checkout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
+        }
+        
+        .clear-btn {
+            background: #e0e0e0;
+            color: #555;
+        }
+        
+        .clear-btn:hover { background: #d0d0d0; }
+        
+        /* ================================================================
+           ALERTS
+           ================================================================ */
+        .alerts-scroll {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .alert-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            background: #fff8e1;
+            border-left: 3px solid #ff9800;
+            animation: slideIn 0.5s ease;
+            font-size: 11px;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-15px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .alert-item.danger {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        .alert-item .alert-msg { font-size: 11px; }
+        .alert-item .alert-msg strong { display: block; font-size: 13px; }
+        
+        .alert-item .alert-action {
+            background: #1a3a5c;
+            color: white;
+            border: none;
+            padding: 3px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        
+        .alert-item .alert-action:hover { background: #2a5f7a; }
+        .alert-item .alert-action.danger-btn { background: #c62828; }
+        .alert-item .alert-action.danger-btn:hover { background: #b71c1c; }
+        
+        .no-alerts {
+            text-align: center;
+            color: #4caf50;
+            padding: 20px 0;
+            font-size: 13px;
+        }
+        
+        .no-alerts i { font-size: 24px; display: block; margin-bottom: 4px; }
+        
+        /* ================================================================
+           TOAST
+           ================================================================ */
+        .toast-container {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .toast {
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            animation: slideInRight 0.5s ease;
+            min-width: 220px;
+            max-width: 350px;
+            font-size: 13px;
+        }
+        
+        .toast.danger { background: #c62828; }
+        .toast.success { background: #2e7d32; }
+        .toast.warning { background: #e65100; }
+        .toast.info { background: #0d47a1; }
+        
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .toast .toast-title { font-weight: 700; font-size: 14px; }
+        .toast .toast-msg { font-size: 12px; margin-top: 2px; opacity: 0.9; }
+        .toast .toast-time { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+        
+        /* ================================================================
+           CHART & LOG
+           ================================================================ */
+        .chart-container {
+            height: 100px;
+            margin-top: 4px;
+        }
+        
+        .log-container {
+            max-height: 130px;
+            overflow-y: auto;
+            font-size: 11px;
+        }
+        
+        .log-item {
+            padding: 3px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .log-item .log-time { color: #999; font-size: 9px; min-width: 60px; }
+        .log-item .log-msg { color: #333; }
+        .log-item.danger .log-msg { color: #c62828; }
+        .log-item.warning .log-msg { color: #e65100; }
+        .log-item.success .log-msg { color: #2e7d32; }
+        
+        /* ================================================================
+           RECEIPT MODAL
+           ================================================================ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-overlay.show { display: flex; }
+        
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 25px 30px;
+            max-width: 420px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: modalIn 0.3s ease;
+        }
+        
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .modal .receipt-header {
+            text-align: center;
+            border-bottom: 2px dashed #ddd;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .modal .receipt-header h2 {
+            font-size: 20px;
+            color: #1a3a5c;
+        }
+        
+        .modal .receipt-header .receipt-time {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .modal .receipt-items {
+            margin: 10px 0;
+        }
+        
+        .modal .receipt-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .modal .receipt-item .item-name { color: #333; }
+        .modal .receipt-item .item-price { font-weight: 600; color: #1a3a5c; }
+        .modal .receipt-item .item-discount-label { font-size: 10px; color: #d32f2f; }
+        
+        .modal .receipt-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: 700;
+            border-top: 2px solid #1a3a5c;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        
+        .modal .receipt-total .total-discount {
+            font-size: 14px;
+            color: #d32f2f;
+            font-weight: 600;
+        }
+        
+        .modal .receipt-footer {
+            text-align: center;
+            border-top: 2px dashed #ddd;
+            padding-top: 12px;
+            margin-top: 12px;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .modal .receipt-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .modal .receipt-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .modal .receipt-actions .print-btn {
+            background: #1a3a5c;
+            color: white;
+        }
+        
+        .modal .receipt-actions .print-btn:hover { background: #2a5f7a; }
+        
+        .modal .receipt-actions .close-btn {
+            background: #e0e0e0;
+            color: #555;
+        }
+        
+        .modal .receipt-actions .close-btn:hover { background: #d0d0d0; }
+        
+        /* ================================================================
+           RESPONSIVE
+           ================================================================ */
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr 1fr; }
+            .stats-container { grid-template-columns: repeat(3, 1fr); }
+        }
+        
+        @media (max-width: 800px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .stats-container { grid-template-columns: repeat(2, 1fr); }
+            .form-row { flex-direction: column; }
+            .form-group { min-width: 100%; }
+            .add-btn { width: 100%; }
+            .scan-btn-group { width: 100%; flex-direction: column; }
+            .qr-btn, .barcode-scan-btn { width: 100%; }
+            .barcode-input-group { flex-direction: column; }
+            .barcode-input-group .scan-input-btn { width: 100%; }
+        }
+        
+        @media (max-width: 500px) {
+            .header { flex-direction: column; text-align: center; }
+            .header-right { flex-direction: column; width: 100%; }
+            .stats-container { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================ -->
+    <!-- HEADER -->
+    <!-- ============================================================ -->
+    <header class="header">
+        <div class="header-left">
+            <h1><i class="fas fa-robot"></i> SmartShelf POS</h1>
+            <span class="live-badge"><span class="dot"></span> LIVE</span>
+        </div>
+        <div class="header-right">
+            <div class="clock-display"><i class="fas fa-clock"></i> <span id="liveClock">--:--:--</span></div>
+            <button class="sound-toggle" onclick="toggleSound()">
+                <i class="fas fa-volume-up"></i> <span id="soundLabel">Sound</span>
+            </button>
+            <span style="font-size:12px;">📦 <span id="totalCount">0</span> | 🛒 <span id="cartCount">0</span></span>
+        </div>
+    </header>
+
+    <!-- ============================================================ -->
+    <!-- ADD PRODUCT -->
+    <!-- ============================================================ -->
+    <section class="add-product-section">
+        <h2><i class="fas fa-plus-circle"></i> Add New Product to Inventory</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label><i class="fas fa-tag"></i> Name</label>
+                <div class="barcode-input-group">
+                    <input type="text" id="productName" placeholder="e.g., Milk" value="Milk" />
+                    <button class="scan-input-btn" onclick="openBarcodeScannerForName()">
+                        <i class="fas fa-barcode"></i> Scan
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-dollar-sign"></i> Price ($)</label>
+                <input type="number" id="productPrice" placeholder="5.00" value="5.00" step="0.01" />
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-calendar-alt"></i> Expiry</label>
+                <input type="datetime-local" id="expiryDateTime" />
+            </div>
+            <div class="scan-btn-group">
+                <button class="add-btn" onclick="addProduct()"><i class="fas fa-plus"></i> Add</button>
+                <button class="qr-btn" onclick="openQRScanner()"><i class="fas fa-qrcode"></i> QR</button>
+                <button class="barcode-scan-btn" onclick="openBarcodeScanner()"><i class="fas fa-barcode"></i> Barcode</button>
+            </div>
+        </div>
+        
+        <!-- Scanner Data Preview -->
+        <div class="scanner-data-preview" id="scannerDataPreview">
+            <div class="preview-row">
+                <span class="label">📦 Product:</span>
+                <span class="value" id="previewName">-</span>
+            </div>
+            <div class="preview-row">
+                <span class="label">💰 Price:</span>
+                <span class="value" id="previewPrice">-</span>
+            </div>
+            <div class="preview-row">
+                <span class="label">📅 Expiry:</span>
+                <span class="value" id="previewExpiry">-</span>
+            </div>
+            <div class="preview-row">
+                <span class="label">🔢 Barcode:</span>
+                <span class="value" id="previewBarcode">-</span>
+            </div>
+            <button class="apply-btn" onclick="applyScannerData()"><i class="fas fa-check"></i> Apply to Form</button>
+        </div>
+        
+        <div style="margin-top:6px; font-size:11px; color:#888;">
+            <i class="fas fa-info-circle"></i> Alerts at: <strong>5 min</strong> (15% off), <strong>3 min</strong> (30% off), <strong>1 min</strong> (50% off), <strong>EXPIRY</strong>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SCANNER MODAL -->
+    <!-- ============================================================ -->
+    <div class="scanner-modal-overlay" id="scannerModal">
+        <div class="scanner-modal">
+            <div class="scanner-header">
+                <h3>
+                    <i class="fas fa-qrcode qr-icon" id="scannerIcon"></i>
+                    <span id="scannerTitle">Scan QR Code</span>
+                </h3>
+                <button class="scanner-close" onclick="closeScanner()">&times;</button>
+            </div>
+            <div id="scanner-reader"></div>
+            <div class="scanner-info">
+                <i class="fas fa-camera"></i> <span id="scannerInfoText">Position the QR code in the camera view</span>
+            </div>
+            <div class="scanner-actions">
+                <button class="stop-btn" onclick="stopScanner()"><i class="fas fa-stop"></i> Stop</button>
+                <button class="switch-btn" onclick="switchScannerMode()"><i class="fas fa-sync"></i> Switch</button>
+                <button class="manual-btn" onclick="manualScannerInput()"><i class="fas fa-keyboard"></i> Manual</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- STATS -->
+    <!-- ============================================================ -->
+    <section class="stats-container">
+        <div class="stat-card"><div class="number" id="statTotal">0</div><div class="label">Total Products</div></div>
+        <div class="stat-card warning"><div class="number" id="statExpiring">0</div><div class="label">Expiring Soon</div></div>
+        <div class="stat-card danger"><div class="number" id="statExpired">0</div><div class="label">Expired</div></div>
+        <div class="stat-card success"><div class="number" id="statSavings">$0.00</div><div class="label">Total Savings</div></div>
+        <div class="stat-card gold"><div class="number" id="statRevenue">$0.00</div><div class="label">Today's Revenue</div></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- MAIN GRID -->
+    <!-- ============================================================ -->
+    <section class="main-grid">
+
+        <!-- COLUMN 1: PRODUCT LIST -->
+        <div class="panel">
+            <h2><i class="fas fa-list-ul"></i> Inventory</h2>
+            <div style="max-height:250px;overflow-y:auto;">
+                <table class="product-table">
+                    <thead><tr><th>Product</th><th>Status</th><th>Price</th><th>Time</th><th>Action</th></tr></thead>
+                    <tbody id="productTableBody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:4px;font-size:10px;color:#888;text-align:center;">
+                <i class="fas fa-sync-alt fa-spin"></i> Updates every second
+            </div>
+        </div>
+
+        <!-- COLUMN 2: BILLING COUNTER -->
+        <div class="panel">
+            <h2><i class="fas fa-shopping-cart"></i> Billing Counter</h2>
+            
+            <div class="billing-barcode-input">
+                <input type="text" id="barcodeInput" placeholder="Enter barcode or name" />
+                <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Add</button>
+            </div>
+            
+            <div class="quick-add-btns" id="quickAddBtns">
+                <!-- Quick add buttons generated by JavaScript -->
+            </div>
+            
+            <div class="cart-items" id="cartItems">
+                <div style="color:#999;text-align:center;padding:15px 0;font-size:13px;">
+                    <i class="fas fa-shopping-cart" style="font-size:24px;display:block;margin-bottom:4px;"></i>
+                    Cart is empty
+                </div>
+            </div>
+            
+            <div class="cart-total">
+                <span>Total</span>
+                <div>
+                    <span class="total-discount" id="cartDiscount">$0.00 saved</span>
+                    <span class="total-amount" id="cartTotal">$0.00</span>
+                </div>
+            </div>
+            
+            <div class="cart-actions">
+                <button class="checkout-btn" onclick="checkout()"><i class="fas fa-check-circle"></i> Checkout</button>
+                <button class="clear-btn" onclick="clearCart()"><i class="fas fa-trash"></i> Clear</button>
+            </div>
+        </div>
+
+        <!-- COLUMN 3: ALERTS + CHART + LOG -->
+        <div class="panel">
+            <h2><i class="fas fa-bell"></i> Alerts <span id="alertBadge" style="background:#f44336;color:white;padding:0px 8px;border-radius:10px;font-size:11px;margin-left:4px;">0</span></h2>
+            <div class="alerts-scroll" id="alertsContainer">
+                <div class="no-alerts"><i class="fas fa-check-circle"></i> All clear!</div>
+            </div>
+            
+            <div style="margin-top:10px;">
+                <h2 style="font-size:13px;border-bottom:1px solid #e8edf3;padding-bottom:4px;margin-bottom:6px;">
+                    <i class="fas fa-chart-line"></i> Price Trend
+                </h2>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+            
+            <div style="margin-top:8px;">
+                <h2 style="font-size:13px;border-bottom:1px solid #e8edf3;padding-bottom:4px;margin-bottom:4px;">
+                    <i class="fas fa-history"></i> Activity Log
+                </h2>
+                <div class="log-container" id="logContainer">
+                    <div style="color:#999;text-align:center;padding:8px 0;font-size:12px;">No activity yet.</div>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- RECEIPT MODAL -->
+    <!-- ============================================================ -->
+    <div class="modal-overlay" id="receiptModal">
+        <div class="modal">
+            <div class="receipt-header">
+                <h2><i class="fas fa-receipt"></i> SmartShelf</h2>
+                <div class="receipt-time" id="receiptTime">---</div>
+                <div style="font-size:12px;color:#888;">Thank you for shopping!</div>
+            </div>
+            <div class="receipt-items" id="receiptItems">
+                <!-- Filled by JavaScript -->
+            </div>
+            <div class="receipt-total">
+                <span>Total</span>
+                <div>
+                    <div class="total-discount" id="receiptDiscount">$0.00 saved</div>
+                    <span id="receiptTotal">$0.00</span>
+                </div>
+            </div>
+            <div class="receipt-footer">
+                Items: <span id="receiptItemCount">0</span> | 
+                Discounts applied automatically for near-expiry items
+            </div>
+            <div class="receipt-actions">
+                <button class="print-btn" onclick="printReceipt()"><i class="fas fa-print"></i> Print</button>
+                <button class="close-btn" onclick="closeReceipt()"><i class="fas fa-times"></i> Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TOAST CONTAINER -->
+    <!-- ============================================================ -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ============================================================ -->
+    <!-- JAVASCRIPT - Link to external script.js -->
+    <!-- ============================================================ -->
+    <script src="script.js"></script>
+
+</body>
+</html>
