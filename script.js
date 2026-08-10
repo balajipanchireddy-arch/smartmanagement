@@ -7,6 +7,231 @@ let notificationLog = [];
 let soundEnabled = true;
 let chart = null;
 let totalRevenue = 0;
+let scanner = null;
+let scannedData = null;
+let scannerMode = 'qr'; // 'qr' or 'barcode'
+
+// ================================================================
+// SCANNER FUNCTIONS
+// ================================================================
+
+// Open scanner for QR
+function openQRScanner() {
+    scannerMode = 'qr';
+    openScanner('QR Code', 'fa-qrcode', 'Position the QR code in the camera view');
+}
+
+// Open scanner for Barcode
+function openBarcodeScanner() {
+    scannerMode = 'barcode';
+    openScanner('Barcode', 'fa-barcode', 'Position the barcode in the camera view');
+}
+
+// Open scanner for Name field (barcode)
+function openBarcodeScannerForName() {
+    scannerMode = 'barcode';
+    openScanner('Barcode (Name)', 'fa-barcode', 'Scan barcode to fill product name');
+    // Set flag to only update name field
+    window._scanOnlyName = true;
+}
+
+function openScanner(title, icon, infoText) {
+    const modal = document.getElementById('scannerModal');
+    document.getElementById('scannerTitle').textContent = `Scan ${title}`;
+    document.getElementById('scannerIcon').className = `fas ${icon}`;
+    document.getElementById('scannerInfoText').textContent = infoText;
+    modal.classList.add('show');
+    
+    setTimeout(() => {
+        startScanner();
+    }, 500);
+}
+
+function closeScanner() {
+    stopScanner();
+    document.getElementById('scannerModal').classList.remove('show');
+    window._scanOnlyName = false;
+}
+
+function startScanner() {
+    const readerElement = document.getElementById('scanner-reader');
+    
+    if (scanner) {
+        scanner.clear();
+        scanner = null;
+    }
+    
+    try {
+        scanner = new Html5Qrcode("scanner-reader");
+        
+        const config = {
+            fps: 15,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+        };
+        
+        scanner.start(
+            { facingMode: "environment" },
+            config,
+            onScannerSuccess,
+            onScannerError
+        );
+        
+        showToast('📷', 'Scanner Started', `Scanning ${scannerMode.toUpperCase()}...`, 'info');
+    } catch (err) {
+        console.error('Scanner error:', err);
+        showToast('⚠️', 'Camera Error', 'Please enter data manually.', 'warning');
+        readerElement.innerHTML = `
+            <div style="text-align:center;padding:30px 0;color:#888;">
+                <i class="fas fa-camera" style="font-size:40px;display:block;margin-bottom:10px;"></i>
+                <p>Camera not available. Please use manual entry.</p>
+                <button onclick="manualScannerInput()" style="margin-top:10px;padding:8px 20px;background:#1a3a5c;color:white;border:none;border-radius:6px;cursor:pointer;">
+                    <i class="fas fa-keyboard"></i> Enter Manually
+                </button>
+            </div>
+        `;
+    }
+}
+
+function stopScanner() {
+    if (scanner) {
+        try {
+            scanner.stop().then(() => {
+                scanner.clear();
+                scanner = null;
+            }).catch(err => {
+                console.error('Stop error:', err);
+            });
+        } catch(e) {
+            console.error('Stop error:', e);
+        }
+    }
+}
+
+function switchScannerMode() {
+    if (scannerMode === 'qr') {
+        scannerMode = 'barcode';
+        document.getElementById('scannerTitle').textContent = 'Scan Barcode';
+        document.getElementById('scannerIcon').className = 'fas fa-barcode';
+        document.getElementById('scannerInfoText').textContent = 'Position the barcode in the camera view';
+    } else {
+        scannerMode = 'qr';
+        document.getElementById('scannerTitle').textContent = 'Scan QR Code';
+        document.getElementById('scannerIcon').className = 'fas fa-qrcode';
+        document.getElementById('scannerInfoText').textContent = 'Position the QR code in the camera view';
+    }
+    
+    // Restart scanner with new mode
+    stopScanner();
+    setTimeout(() => startScanner(), 300);
+}
+
+function onScannerSuccess(decodedText, decodedResult) {
+    // Parse the scanned data
+    try {
+        const data = JSON.parse(decodedText);
+        scannedData = {
+            name: data.name || data.product || 'Unknown Product',
+            price: parseFloat(data.price) || parseFloat(data.cost) || 5.00,
+            expiryDays: parseInt(data.expiry_days) || parseInt(data.days) || 7,
+            barcode: data.barcode || data.sku || decodedText.substring(0, 20),
+            raw: decodedText
+        };
+    } catch (e) {
+        // If not JSON, try to parse as CSV
+        const parts = decodedText.split(',').map(s => s.trim());
+        if (parts.length >= 2) {
+            scannedData = {
+                name: parts[0] || 'Product',
+                price: parseFloat(parts[1]) || 5.00,
+                expiryDays: parseInt(parts[2]) || 7,
+                barcode: parts[3] || decodedText.substring(0, 20),
+                raw: decodedText
+            };
+        } else {
+            // Just use the text
+            scannedData = {
+                name: decodedText.trim() || 'Product',
+                price: 5.00,
+                expiryDays: 7,
+                barcode: decodedText.substring(0, 20),
+                raw: decodedText
+            };
+        }
+    }
+    
+    // If scanning for name only, just update the name field
+    if (window._scanOnlyName) {
+        document.getElementById('productName').value = scannedData.name;
+        showToast('✅', 'Name Scanned!', `Product: ${scannedData.name}`, 'success');
+        closeScanner();
+        return;
+    }
+    
+    // Show preview
+    showScannerPreview(scannedData);
+    
+    // Stop scanner after successful scan
+    stopScanner();
+    
+    setTimeout(() => {
+        closeScanner();
+        showToast('✅', 'Scanned!', `Product: ${scannedData.name}`, 'success');
+    }, 800);
+}
+
+function onScannerError(error) {
+    // Silent fail - just keep scanning
+}
+
+function showScannerPreview(data) {
+    const preview = document.getElementById('scannerDataPreview');
+    document.getElementById('previewName').textContent = data.name;
+    document.getElementById('previewPrice').textContent = `$${data.price.toFixed(2)}`;
+    document.getElementById('previewBarcode').textContent = data.barcode || 'N/A';
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + data.expiryDays);
+    document.getElementById('previewExpiry').textContent = expiryDate.toLocaleDateString();
+    
+    preview.classList.add('show');
+}
+
+function applyScannerData() {
+    if (!scannedData) return;
+    
+    document.getElementById('productName').value = scannedData.name;
+    document.getElementById('productPrice').value = scannedData.price.toFixed(2);
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + scannedData.expiryDays);
+    document.getElementById('expiryDateTime').value = expiryDate.toISOString().slice(0, 16);
+    
+    document.getElementById('scannerDataPreview').classList.remove('show');
+    
+    showToast('📋', 'Applied!', `Data applied to form.`, 'success');
+    
+    // Auto-add the product
+    addProduct();
+}
+
+function manualScannerInput() {
+    closeScanner();
+    const input = prompt('Enter data (Format: Name,Price,ExpiryDays):', 'Milk,4.99,7');
+    if (input) {
+        const parts = input.split(',').map(s => s.trim());
+        const data = {
+            name: parts[0] || 'Product',
+            price: parseFloat(parts[1]) || 5.00,
+            expiryDays: parseInt(parts[2]) || 7,
+            barcode: parts[3] || '',
+            raw: input
+        };
+        scannedData = data;
+        showScannerPreview(data);
+        showToast('📝', 'Manual Entry', `Product: ${data.name}`, 'info');
+    }
+}
 
 // ================================================================
 // AUDIO
@@ -389,7 +614,7 @@ function getCartTotal() {
 }
 
 // ================================================================
-// SCAN BARCODE
+// SCAN BARCODE (Billing)
 // ================================================================
 function scanBarcode() {
     const input = document.getElementById('barcodeInput');
@@ -491,321 +716,4 @@ function printReceipt() {
             .item { display: flex; justify-content: space-between; padding: 3px 0; }
             .total { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; }
             .discount { color: #d32f2f; }
-            .footer { text-align: center; margin-top: 12px; font-size: 12px; color: #888; }
-        </style>
-        </head><body>
-        <div class="center"><h2>SmartShelf</h2>
-        <small>${formatTime(new Date())}</small></div>
-        <div class="line"></div>
-    `);
-    
-    lastReceipt.items.forEach(item => {
-        const discountLabel = item.discount > 0 ? ` (${item.discount}% off)` : '';
-        printWindow.document.write(`
-            <div class="item">
-                <span>${item.name} x${item.quantity}${discountLabel}</span>
-                <span>$${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-        `);
-    });
-    
-    printWindow.document.write(`
-        <div class="line"></div>
-        <div class="total">
-            <span>TOTAL</span>
-            <span>$${lastReceipt.total.toFixed(2)}</span>
-        </div>
-        <div class="discount" style="text-align:right;font-size:13px;">
-            Saved: $${lastReceipt.savings.toFixed(2)}
-        </div>
-        <div class="footer">
-            Items: ${lastReceipt.count} | Thank you!
-        </div>
-        </body></html>
-    `);
-    printWindow.document.close(); // Important: Close the document stream first
-    printWindow.print();          // Then trigger print
-}
-
-// ================================================================
-// LIVE CLOCK
-// ================================================================
-function updateClock() {
-    const now = new Date();
-    document.getElementById('liveClock').textContent = now.toLocaleTimeString('en-US', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
-}
-
-// ================================================================
-// MAIN UI UPDATE
-// ================================================================
-function updateUI() {
-    const now = new Date();
-    let total = products.length;
-    let expiringCount = 0;
-    let expiredCount = 0;
-    let totalSavings = 0;
-    let alertList = [];
-    let selectedProductForChart = null;
-
-    // --- Update each product ---
-    let tableHtml = '';
-    products.forEach((p) => {
-        checkAndTriggerAlerts(p);
-        const info = getProductStatus(p);
-        const statusClass = info.status === 'fresh' ? 'status-fresh' :
-                           info.status === 'expiring' ? 'status-expiring' : 'status-expired';
-        const statusLabel = info.status === 'fresh' ? '✅ Fresh' :
-                           info.status === 'expiring' ? `⚠️ ${info.label}` : '❌ Expired';
-        
-        let rowClass = '';
-        if (info.status === 'expired') rowClass = 'expired-row';
-        else if (info.status === 'expiring') rowClass = 'expiring-row';
-
-        let priceDisplay = '';
-        if (info.status === 'expired') {
-            priceDisplay = '<span style="color:#c62828;font-weight:700;">Expired</span>';
-            expiredCount++;
-        } else if (info.discount > 0) {
-            priceDisplay = `<span class="price-original">$${p.basePrice.toFixed(2)}</span>
-                           <span class="price-discount">$${info.price.toFixed(2)}</span>
-                           <span style="font-size:8px;color:#e65100;font-weight:600;">(-${info.discount}%)</span>`;
-            expiringCount++;
-            totalSavings += (p.basePrice - info.price);
-        } else {
-            priceDisplay = `<span class="price-normal">$${info.price.toFixed(2)}</span>`;
-        }
-
-        let countdownHtml = '';
-        if (info.status === 'expired') {
-            countdownHtml = `<span class="countdown-timer expired">💀 EXP</span>`;
-        } else if (info.status === 'expiring') {
-            countdownHtml = `<span class="countdown-timer warning">⏱️ ${formatCountdown(info.timeLeft)}</span>`;
-        } else {
-            countdownHtml = `<span style="color:#888;font-size:10px;">${formatCountdown(info.timeLeft)}</span>`;
-        }
-
-        const canAdd = info.status !== 'expired';
-        tableHtml += `
-            <tr class="${rowClass}">
-                <td><strong>${p.name}</strong></td>
-                <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-                <td>${priceDisplay}</td>
-                <td>${countdownHtml}</td>
-                <td>
-                    <button class="add-to-cart-btn" onclick="addToCart(${p.id})" ${!canAdd ? 'disabled' : ''}>
-                        <i class="fas fa-cart-plus"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-
-        // Build alert list
-        if (info.status === 'expired') {
-            alertList.push({
-                product: p,
-                type: 'danger',
-                msg: `<strong>${p.name}</strong> EXPIRED`,
-                isDanger: true
-            });
-        } else if (info.status === 'expiring' && info.discount > 0) {
-            alertList.push({
-                product: p,
-                type: 'warning',
-                msg: `<strong>${p.name}</strong> ${info.discount}% off (${formatCountdown(info.timeLeft)})`,
-                isDanger: false
-            });
-        }
-
-        if (!selectedProductForChart && (info.status === 'expiring' || info.status === 'fresh')) {
-            selectedProductForChart = p;
-        }
-    });
-
-    // --- Update table ---
-    document.getElementById('productTableBody').innerHTML = tableHtml;
-
-    // --- Quick Add Buttons ---
-    const quickBtns = document.getElementById('quickAddBtns');
-    const activeProducts = products.filter(p => getProductStatus(p).status !== 'expired');
-    let btnHtml = '';
-    activeProducts.slice(0, 8).forEach(p => {
-        const info = getProductStatus(p);
-        const label = info.discount > 0 ? `${p.name} ${info.discount}%` : p.name;
-        btnHtml += `<button onclick="addToCart(${p.id})">${label}</button>`;
-    });
-    quickBtns.innerHTML = btnHtml || '<span style="font-size:11px;color:#888;">No products available</span>';
-
-    // --- Cart ---
-    const cartContainer = document.getElementById('cartItems');
-    if (cart.length === 0) {
-        cartContainer.innerHTML = `
-            <div style="color:#999;text-align:center;padding:15px 0;font-size:13px;">
-                <i class="fas fa-shopping-cart" style="font-size:24px;display:block;margin-bottom:4px;"></i>
-                Cart is empty
-            </div>
-        `;
-    } else {
-        let cartHtml = '';
-        cart.forEach((item, index) => {
-            const discountLabel = item.discount > 0 ? `<span class="item-discount">(-${item.discount}%)</span>` : '';
-            cartHtml += `
-                <div class="cart-item">
-                    <div class="item-info">
-                        <span class="item-name">${item.name}</span>
-                        ${discountLabel}
-                        <span style="font-size:10px;color:#888;">x${item.quantity}</span>
-                    </div>
-                    <div>
-                        <span class="item-price">$${(item.price * item.quantity).toFixed(2)}</span>
-                        <button class="remove-item" onclick="removeFromCart(${index})"><i class="fas fa-times"></i></button>
-                    </div>
-                </div>
-            `;
-        });
-        cartContainer.innerHTML = cartHtml;
-    }
-
-    const { total: cartTotal, savings: cartSavings } = getCartTotal();
-    document.getElementById('cartTotal').textContent = `$${cartTotal.toFixed(2)}`;
-    document.getElementById('cartDiscount').textContent = `$${cartSavings.toFixed(2)} saved`;
-
-    // --- Alerts ---
-    const alertsContainer = document.getElementById('alertsContainer');
-    if (alertList.length === 0) {
-        alertsContainer.innerHTML = `<div class="no-alerts"><i class="fas fa-check-circle"></i> All clear!</div>`;
-    } else {
-        let alertHtml = '';
-        alertList.forEach((alert, idx) => {
-            alertHtml += `
-                <div class="alert-item ${alert.isDanger ? 'danger' : ''}">
-                    <div class="alert-msg">${alert.msg}</div>
-                    <button class="alert-action ${alert.isDanger ? 'danger-btn' : ''}" onclick="resolveAlert(${idx})">
-                        ${alert.isDanger ? 'Remove' : 'OK'}
-                    </button>
-                </div>
-            `;
-        });
-        alertsContainer.innerHTML = alertHtml;
-    }
-
-    // --- Stats ---
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statExpiring').textContent = expiringCount;
-    document.getElementById('statExpired').textContent = expiredCount;
-    document.getElementById('statSavings').textContent = `$${totalSavings.toFixed(2)}`;
-    document.getElementById('statRevenue').textContent = `$${totalRevenue.toFixed(2)}`;
-    document.getElementById('totalCount').textContent = total;
-    document.getElementById('cartCount').textContent = cart.length;
-    document.getElementById('alertBadge').textContent = alertList.length;
-
-    // --- Chart ---
-    if (selectedProductForChart) {
-        updateChart(selectedProductForChart);
-    } else if (products.length > 0) {
-        updateChart(products[0]);
-    }
-}
-
-// ================================================================
-// RESOLVE ALERT
-// ================================================================
-function resolveAlert(index) {
-    let alertList = [];
-    products.forEach(p => {
-        const info = getProductStatus(p);
-        if (info.status === 'expired' || (info.status === 'expiring' && info.discount > 0)) {
-            alertList.push(p);
-        }
-    });
-
-    if (index < 0 || index >= alertList.length) return;
-    
-    const product = alertList[index];
-    const info = getProductStatus(product);
-    
-    if (info.status === 'expired') {
-        products = products.filter(p => p.id !== product.id);
-        showToast('🗑️', 'Removed', `${product.name} removed from inventory.`, 'success');
-        addLog('success', `🗑️ ${product.name} removed (expired)`);
-    } else {
-        showToast('👌', 'Acknowledged', `${product.name} acknowledged.`, 'info');
-        addLog('info', `👌 ${product.name} acknowledged`);
-        product._alerted['shown'] = true;
-    }
-    
-    updateUI();
-}
-
-// ================================================================
-// SET DEFAULT EXPIRY
-// ================================================================
-function setDefaultExpiry() {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() + 5 + Math.floor(Math.random() * 5));
-    document.getElementById('expiryDateTime').value = now.toISOString().slice(0, 16);
-}
-
-// ================================================================
-// ADD DEMO PRODUCTS
-// ================================================================
-function addDemoProducts() {
-    const now = new Date();
-    
-    const demos = [
-        { name: 'Fresh Milk', price: 5.00, mins: 6 },
-        { name: 'Bread', price: 4.00, mins: 8 },
-        { name: 'Cheese', price: 6.00, mins: 3 },
-        { name: 'Orange Juice', price: 4.50, mins: 10 },
-        { name: 'Yogurt', price: 3.00, mins: 5 },
-        { name: 'Eggs', price: 3.50, mins: 7 },
-        { name: 'Butter', price: 5.50, mins: 4 },
-        { name: 'Chicken', price: 8.00, mins: 9 }
-    ];
-
-    demos.forEach((demo, i) => {
-        const expiry = new Date(now);
-        expiry.setMinutes(expiry.getMinutes() + demo.mins + Math.floor(Math.random() * 2));
-        products.push({
-            id: Date.now() + i + 1,
-            name: demo.name,
-            basePrice: demo.price,
-            expiry: expiry,
-            addedAt: new Date(),
-            _alerted: {}
-        });
-    });
-
-    showToast('🎯', 'Demo Loaded!', '8 demo products added with 3-10 min expiry.', 'success');
-    updateUI();
-}
-
-// ================================================================
-// ENTER KEY FOR BARCODE
-// ================================================================
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('barcodeInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            scanBarcode();
-        }
-    });
-});
-
-// ================================================================
-// INIT
-// ================================================================
-function init() {
-    setDefaultExpiry();
-    updateClock();
-    updateUI();
-    
-    setTimeout(addDemoProducts, 400);
-    
-    setInterval(() => {
-        updateClock();
-        updateUI();
-    }, 1000);
-}
-
-document.addEventListener('DOMContentLoaded', init);
+            .footer { text-align: center; margin-top: 12px; font-size: 12px
