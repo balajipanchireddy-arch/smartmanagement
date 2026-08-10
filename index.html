@@ -8,8 +8,13 @@
     <!-- External CDNs -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- QR & Barcode Scanner Library -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     
     <style>
+        /* ================================================================
+           GLOBAL STYLES
+           ================================================================ */
         * {
             margin: 0;
             padding: 0;
@@ -22,6 +27,9 @@
             padding: 15px;
         }
         
+        /* ================================================================
+           HEADER
+           ================================================================ */
         .header {
             background: linear-gradient(135deg, #1a3a5c, #2a5f7a);
             color: white;
@@ -110,6 +118,9 @@
         .sound-toggle:hover { background: rgba(255,255,255,0.2); }
         .sound-toggle.muted { opacity: 0.5; }
         
+        /* ================================================================
+           ADD PRODUCT SECTION
+           ================================================================ */
         .add-product-section {
             background: white;
             border-radius: 10px;
@@ -178,6 +189,249 @@
         
         .add-btn i { margin-right: 5px; }
         
+        .barcode-input-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        
+        .barcode-input-group input {
+            flex: 1;
+            padding: 7px 10px;
+            border: 2px solid #dce3ec;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+            transition: 0.2s;
+        }
+        
+        .barcode-input-group input:focus { border-color: #2a5f7a; }
+        
+        .barcode-input-group .scan-input-btn {
+            padding: 7px 14px;
+            background: #00695c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            white-space: nowrap;
+            transition: 0.3s;
+        }
+        
+        .barcode-input-group .scan-input-btn:hover { background: #00897b; }
+        
+        .scan-btn-group {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        
+        .qr-btn {
+            padding: 7px 16px;
+            background: linear-gradient(135deg, #6a1b9a, #8e24aa);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            min-width: 80px;
+        }
+        
+        .qr-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(106, 27, 154, 0.3);
+        }
+        
+        .qr-btn i { margin-right: 5px; }
+        
+        .barcode-scan-btn {
+            padding: 7px 16px;
+            background: linear-gradient(135deg, #00695c, #00897b);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            min-width: 80px;
+        }
+        
+        .barcode-scan-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 105, 92, 0.3);
+        }
+        
+        .barcode-scan-btn i { margin-right: 5px; }
+        
+        /* ================================================================
+           SCANNER DATA PREVIEW
+           ================================================================ */
+        .scanner-data-preview {
+            background: #f0f4f8;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 8px;
+            display: none;
+            border-left: 4px solid #6a1b9a;
+        }
+        
+        .scanner-data-preview.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .scanner-data-preview .preview-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 2px 0;
+        }
+        
+        .scanner-data-preview .preview-row .label {
+            color: #666;
+            font-weight: 600;
+        }
+        
+        .scanner-data-preview .preview-row .value {
+            color: #1a3a5c;
+            font-weight: 600;
+        }
+        
+        .scanner-data-preview .apply-btn {
+            margin-top: 8px;
+            padding: 6px 16px;
+            background: #2e7d32;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+        }
+        
+        .scanner-data-preview .apply-btn:hover { background: #388e3c; }
+        
+        /* ================================================================
+           SCANNER MODAL
+           ================================================================ */
+        .scanner-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 20000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .scanner-modal-overlay.show { display: flex; }
+        
+        .scanner-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 480px;
+            width: 95%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: modalIn 0.3s ease;
+        }
+        
+        .scanner-modal .scanner-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .scanner-modal .scanner-header h3 {
+            color: #1a3a5c;
+            font-size: 18px;
+        }
+        
+        .scanner-modal .scanner-header h3 i {
+            margin-right: 8px;
+        }
+        
+        .scanner-modal .scanner-header h3 .qr-icon { color: #6a1b9a; }
+        .scanner-modal .scanner-header h3 .barcode-icon { color: #00695c; }
+        
+        .scanner-modal .scanner-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+            padding: 0 8px;
+        }
+        
+        .scanner-modal .scanner-close:hover { color: #333; }
+        
+        .scanner-modal #scanner-reader {
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            min-height: 250px;
+            background: #000;
+        }
+        
+        .scanner-modal .scanner-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+        }
+        
+        .scanner-modal .scanner-info i { margin-right: 4px; }
+        
+        .scanner-modal .scanner-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        
+        .scanner-modal .scanner-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .scanner-modal .scanner-actions .stop-btn {
+            background: #e0e0e0;
+            color: #555;
+        }
+        
+        .scanner-modal .scanner-actions .stop-btn:hover { background: #d0d0d0; }
+        
+        .scanner-modal .scanner-actions .manual-btn {
+            background: #1a3a5c;
+            color: white;
+        }
+        
+        .scanner-modal .scanner-actions .manual-btn:hover { background: #2a5f7a; }
+        
+        .scanner-modal .scanner-actions .switch-btn {
+            background: #e8edf3;
+            color: #1a3a5c;
+        }
+        
+        .scanner-modal .scanner-actions .switch-btn:hover { background: #d0d9e6; }
+        
+        /* ================================================================
+           STATS
+           ================================================================ */
         .stats-container {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -201,6 +455,9 @@
         .stat-card.success { border-left-color: #4caf50; }
         .stat-card.gold { border-left-color: #ffc107; }
         
+        /* ================================================================
+           MAIN GRID
+           ================================================================ */
         .main-grid {
             display: grid;
             grid-template-columns: 1.2fr 0.9fr 1.1fr;
@@ -225,6 +482,9 @@
         
         .panel h2 i { margin-right: 6px; color: #2a5f7a; }
         
+        /* ================================================================
+           PRODUCT TABLE
+           ================================================================ */
         .product-table {
             width: 100%;
             border-collapse: collapse;
@@ -298,13 +558,16 @@
             cursor: not-allowed;
         }
         
-        .barcode-input {
+        /* ================================================================
+           BILLING / CART
+           ================================================================ */
+        .billing-barcode-input {
             display: flex;
             gap: 8px;
             margin-bottom: 10px;
         }
         
-        .barcode-input input {
+        .billing-barcode-input input {
             flex: 1;
             padding: 7px 10px;
             border: 2px solid #dce3ec;
@@ -314,9 +577,9 @@
             transition: 0.2s;
         }
         
-        .barcode-input input:focus { border-color: #2a5f7a; }
+        .billing-barcode-input input:focus { border-color: #2a5f7a; }
         
-        .barcode-input button {
+        .billing-barcode-input button {
             padding: 7px 14px;
             background: #1a3a5c;
             color: white;
@@ -327,7 +590,7 @@
             white-space: nowrap;
         }
         
-        .barcode-input button:hover { background: #2a5f7a; }
+        .billing-barcode-input button:hover { background: #2a5f7a; }
         
         .quick-add-btns {
             display: flex;
@@ -435,6 +698,9 @@
         
         .clear-btn:hover { background: #d0d0d0; }
         
+        /* ================================================================
+           ALERTS
+           ================================================================ */
         .alerts-scroll {
             max-height: 200px;
             overflow-y: auto;
@@ -491,6 +757,9 @@
         
         .no-alerts i { font-size: 24px; display: block; margin-bottom: 4px; }
         
+        /* ================================================================
+           TOAST
+           ================================================================ */
         .toast-container {
             position: fixed;
             top: 15px;
@@ -526,6 +795,9 @@
         .toast .toast-msg { font-size: 12px; margin-top: 2px; opacity: 0.9; }
         .toast .toast-time { font-size: 10px; opacity: 0.7; margin-top: 2px; }
         
+        /* ================================================================
+           CHART & LOG
+           ================================================================ */
         .chart-container {
             height: 100px;
             margin-top: 4px;
@@ -551,6 +823,9 @@
         .log-item.warning .log-msg { color: #e65100; }
         .log-item.success .log-msg { color: #2e7d32; }
         
+        /* ================================================================
+           RECEIPT MODAL
+           ================================================================ */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -672,6 +947,9 @@
         
         .modal .receipt-actions .close-btn:hover { background: #d0d0d0; }
         
+        /* ================================================================
+           RESPONSIVE
+           ================================================================ */
         @media (max-width: 1200px) {
             .main-grid { grid-template-columns: 1fr 1fr; }
             .stats-container { grid-template-columns: repeat(3, 1fr); }
@@ -683,6 +961,10 @@
             .form-row { flex-direction: column; }
             .form-group { min-width: 100%; }
             .add-btn { width: 100%; }
+            .scan-btn-group { width: 100%; flex-direction: column; }
+            .qr-btn, .barcode-scan-btn { width: 100%; }
+            .barcode-input-group { flex-direction: column; }
+            .barcode-input-group .scan-input-btn { width: 100%; }
         }
         
         @media (max-width: 500px) {
@@ -694,7 +976,9 @@
 </head>
 <body>
 
+    <!-- ============================================================ -->
     <!-- HEADER -->
+    <!-- ============================================================ -->
     <header class="header">
         <div class="header-left">
             <h1><i class="fas fa-robot"></i> SmartShelf POS</h1>
@@ -709,13 +993,20 @@
         </div>
     </header>
 
+    <!-- ============================================================ -->
     <!-- ADD PRODUCT -->
+    <!-- ============================================================ -->
     <section class="add-product-section">
         <h2><i class="fas fa-plus-circle"></i> Add New Product to Inventory</h2>
         <div class="form-row">
             <div class="form-group">
                 <label><i class="fas fa-tag"></i> Name</label>
-                <input type="text" id="productName" placeholder="e.g., Milk" value="Milk" />
+                <div class="barcode-input-group">
+                    <input type="text" id="productName" placeholder="e.g., Milk" value="Milk" />
+                    <button class="scan-input-btn" onclick="openBarcodeScannerForName()">
+                        <i class="fas fa-barcode"></i> Scan
+                    </button>
+                </div>
             </div>
             <div class="form-group">
                 <label><i class="fas fa-dollar-sign"></i> Price ($)</label>
@@ -725,14 +1016,66 @@
                 <label><i class="fas fa-calendar-alt"></i> Expiry</label>
                 <input type="datetime-local" id="expiryDateTime" />
             </div>
-            <button class="add-btn" onclick="addProduct()"><i class="fas fa-plus"></i> Add</button>
+            <div class="scan-btn-group">
+                <button class="add-btn" onclick="addProduct()"><i class="fas fa-plus"></i> Add</button>
+                <button class="qr-btn" onclick="openQRScanner()"><i class="fas fa-qrcode"></i> QR</button>
+                <button class="barcode-scan-btn" onclick="openBarcodeScanner()"><i class="fas fa-barcode"></i> Barcode</button>
+            </div>
         </div>
+        
+        <!-- Scanner Data Preview -->
+        <div class="scanner-data-preview" id="scannerDataPreview">
+            <div class="preview-row">
+                <span class="label">📦 Product:</span>
+                <span class="value" id="previewName">-</span>
+            </div>
+            <div class="preview-row">
+                <span class="label">💰 Price:</span>
+                <span class="value" id="previewPrice">-</span>
+            </div>
+            <div class="preview-row">
+                <span class="label">📅 Expiry:</span>
+                <span class="value" id="previewExpiry">-</span>
+            </div>
+            <div class="preview-row">
+                <span class="label">🔢 Barcode:</span>
+                <span class="value" id="previewBarcode">-</span>
+            </div>
+            <button class="apply-btn" onclick="applyScannerData()"><i class="fas fa-check"></i> Apply to Form</button>
+        </div>
+        
         <div style="margin-top:6px; font-size:11px; color:#888;">
             <i class="fas fa-info-circle"></i> Alerts at: <strong>5 min</strong> (15% off), <strong>3 min</strong> (30% off), <strong>1 min</strong> (50% off), <strong>EXPIRY</strong>
         </div>
     </section>
 
+    <!-- ============================================================ -->
+    <!-- SCANNER MODAL -->
+    <!-- ============================================================ -->
+    <div class="scanner-modal-overlay" id="scannerModal">
+        <div class="scanner-modal">
+            <div class="scanner-header">
+                <h3>
+                    <i class="fas fa-qrcode qr-icon" id="scannerIcon"></i>
+                    <span id="scannerTitle">Scan QR Code</span>
+                </h3>
+                <button class="scanner-close" onclick="closeScanner()">&times;</button>
+            </div>
+            <div id="scanner-reader"></div>
+            <div class="scanner-info">
+                <i class="fas fa-camera"></i> <span id="scannerInfoText">Position the QR code in the camera view</span>
+            </div>
+            <div class="scanner-actions">
+                <button class="stop-btn" onclick="stopScanner()"><i class="fas fa-stop"></i> Stop</button>
+                <button class="switch-btn" onclick="switchScannerMode()"><i class="fas fa-sync"></i> Switch</button>
+                <button class="manual-btn" onclick="manualScannerInput()"><i class="fas fa-keyboard"></i> Manual</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
     <!-- STATS -->
+    <!-- ============================================================ -->
     <section class="stats-container">
         <div class="stat-card"><div class="number" id="statTotal">0</div><div class="label">Total Products</div></div>
         <div class="stat-card warning"><div class="number" id="statExpiring">0</div><div class="label">Expiring Soon</div></div>
@@ -741,7 +1084,9 @@
         <div class="stat-card gold"><div class="number" id="statRevenue">$0.00</div><div class="label">Today's Revenue</div></div>
     </section>
 
+    <!-- ============================================================ -->
     <!-- MAIN GRID -->
+    <!-- ============================================================ -->
     <section class="main-grid">
 
         <!-- COLUMN 1: PRODUCT LIST -->
@@ -762,7 +1107,7 @@
         <div class="panel">
             <h2><i class="fas fa-shopping-cart"></i> Billing Counter</h2>
             
-            <div class="barcode-input">
+            <div class="billing-barcode-input">
                 <input type="text" id="barcodeInput" placeholder="Enter barcode or name" />
                 <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Add</button>
             </div>
@@ -820,7 +1165,9 @@
 
     </section>
 
+    <!-- ============================================================ -->
     <!-- RECEIPT MODAL -->
+    <!-- ============================================================ -->
     <div class="modal-overlay" id="receiptModal">
         <div class="modal">
             <div class="receipt-header">
@@ -849,10 +1196,14 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
     <!-- TOAST CONTAINER -->
+    <!-- ============================================================ -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- EXTERNAL JAVASCRIPT -->
+    <!-- ============================================================ -->
+    <!-- JAVASCRIPT - Link to external script.js -->
+    <!-- ============================================================ -->
     <script src="script.js"></script>
 
 </body>
