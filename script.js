@@ -1,4 +1,22 @@
 // ================================================================
+// FIREBASE CONFIG - YOUR CONFIG HERE
+// ================================================================
+const firebaseConfig = {
+    apiKey: "AIzaSyDxfTPMySvXDNkAF0-ruIvGhiV23H1GcVs",
+    authDomain: "myproject-facd5.firebaseapp.com",
+    databaseURL: "https://myproject-facd5-default-rtdb.firebaseio.com",
+    projectId: "myproject-facd5",
+    storageBucket: "myproject-facd5.firebasestorage.app",
+    messagingSenderId: "967008076076",
+    appId: "1:967008076076:web:e34160a72525210ba1ec89",
+    measurementId: "G-B7EX225NTR"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ================================================================
 // DATA
 // ================================================================
 let products = [];
@@ -36,7 +54,7 @@ function saveData() {
 }
 
 // ================================================================
-// SYNC TO CONSUMER APP (Using localStorage as shared storage)
+// SYNC TO CONSUMER APP (Using Firebase)
 // ================================================================
 function syncToConsumer() {
     const purchasedItems = products.filter(p => p.purchased);
@@ -46,42 +64,77 @@ function syncToConsumer() {
         return;
     }
     
-    let consumerData = JSON.parse(localStorage.getItem('consumerProducts') || '[]');
+    // Ask for customer's mobile number
+    const mobile = prompt('Enter customer mobile number (10 digits):', '9876543210');
+    if (!mobile || mobile.length < 10) {
+        showToast('⚠️', 'Mobile Required', 'Please enter a valid mobile number.', 'warning');
+        return;
+    }
     
-    purchasedItems.forEach(item => {
-        consumerData.push({
-            id: item.id,
-            name: item.name,
-            basePrice: item.basePrice,
-            price: item.price || item.basePrice,
-            expiry: item.expiry.toISOString(),
-            purchaseDate: new Date().toISOString(),
-            isConsumed: false,
-            discount: item.discount || 0,
-            shopName: 'SmartShelf Store',
-            alertSent: {
-                '7d': false,
-                '3d': false,
-                '1d': false,
-                'expired': false
-            }
-        });
-    });
+    if (!/^\d{10}$/.test(mobile)) {
+        showToast('⚠️', 'Invalid Mobile', 'Please enter only 10 digits.', 'warning');
+        return;
+    }
     
-    localStorage.setItem('consumerProducts', JSON.stringify(consumerData));
+    const fullMobile = '+91' + mobile;
+    const userRef = db.ref('users/' + fullMobile);
     
-    products.forEach(p => {
-        if (p.purchased) {
-            p.synced = true;
-            p.purchased = false;
+    // Check if user exists
+    userRef.once('value').then(snapshot => {
+        const userData = snapshot.val();
+        
+        if (!userData) {
+            // Create new user
+            userRef.set({
+                name: 'User',
+                mobile: fullMobile,
+                registeredAt: Date.now(),
+                pantryItems: {}
+            });
         }
+        
+        // Add purchased items to pantry
+        const updates = {};
+        purchasedItems.forEach(item => {
+            const newItem = {
+                id: item.id,
+                name: item.name,
+                price: item.price || item.basePrice,
+                expiry: item.expiry.toISOString(),
+                purchaseDate: new Date().toISOString(),
+                discount: item.discount || 0,
+                syncedFromShop: true,
+                isConsumed: false,
+                alertSent: {
+                    '7d': false,
+                    '3d': false,
+                    '1d': false,
+                    'expired': false
+                }
+            };
+            
+            const newItemRef = userRef.child('pantryItems').push();
+            updates[newItemRef.key] = newItem;
+        });
+        
+        userRef.child('pantryItems').update(updates).then(() => {
+            showToast('✅', 'Synced!', `${purchasedItems.length} items sent to ${fullMobile}`, 'success');
+            addLog('success', `🔄 Synced ${purchasedItems.length} items to ${fullMobile}`);
+            
+            // Mark items as synced
+            products.forEach(p => {
+                if (p.purchased) {
+                    p.synced = true;
+                    p.purchased = false;
+                }
+            });
+            saveData();
+            updateUI();
+        });
+    }).catch(error => {
+        console.error('Sync error:', error);
+        showToast('❌', 'Sync Failed', 'Could not connect to server.', 'danger');
     });
-    
-    saveData();
-    
-    showToast('✅', 'Synced!', `${purchasedItems.length} items sent to consumer app.`, 'success');
-    addLog('success', `🔄 Synced ${purchasedItems.length} items to consumer`);
-    updateUI();
 }
 
 // ================================================================
@@ -350,6 +403,19 @@ function checkout() {
     const { total, savings } = getCartTotal();
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
     
+    // Ask for customer mobile number
+    const mobile = prompt('Enter customer mobile number (10 digits):', '9876543210');
+    
+    if (!mobile || mobile.length < 10) {
+        showToast('⚠️', 'Mobile Required', 'Please enter a valid mobile number.', 'warning');
+        return;
+    }
+    
+    if (!/^\d{10}$/.test(mobile)) {
+        showToast('⚠️', 'Invalid Mobile', 'Please enter only 10 digits.', 'warning');
+        return;
+    }
+    
     totalRevenue += total;
     
     cart.forEach(cartItem => {
@@ -362,12 +428,13 @@ function checkout() {
     });
     
     saveData();
-    showReceipt(cart, total, savings, itemCount);
-    addLog('success', `💰 Sale completed: $${total.toFixed(2)} (${itemCount} items, saved $${savings.toFixed(2)})`);
+    showReceipt(cart, total, savings, itemCount, mobile);
+    addLog('success', `💰 Sale: $${total.toFixed(2)} (${itemCount} items) for ${mobile}`);
     showToast('✅', 'Sale Complete!', `Total: $${total.toFixed(2)} | Saved: $${savings.toFixed(2)}`, 'success');
     
+    // Sync to Firebase
     setTimeout(() => {
-        syncToConsumer();
+        syncToConsumerWithMobile(mobile);
     }, 1000);
     
     cart = [];
@@ -375,16 +442,82 @@ function checkout() {
 }
 
 // ================================================================
+// SYNC TO CONSUMER WITH MOBILE
+// ================================================================
+function syncToConsumerWithMobile(mobile) {
+    const purchasedItems = products.filter(p => p.purchased);
+    
+    if (purchasedItems.length === 0) {
+        return;
+    }
+    
+    const fullMobile = '+91' + mobile;
+    const userRef = db.ref('users/' + fullMobile);
+    
+    userRef.once('value').then(snapshot => {
+        const userData = snapshot.val();
+        
+        if (!userData) {
+            userRef.set({
+                name: 'User',
+                mobile: fullMobile,
+                registeredAt: Date.now(),
+                pantryItems: {}
+            });
+        }
+        
+        const updates = {};
+        purchasedItems.forEach(item => {
+            const newItem = {
+                id: item.id,
+                name: item.name,
+                price: item.price || item.basePrice,
+                expiry: item.expiry.toISOString(),
+                purchaseDate: new Date().toISOString(),
+                discount: item.discount || 0,
+                syncedFromShop: true,
+                isConsumed: false,
+                alertSent: {
+                    '7d': false,
+                    '3d': false,
+                    '1d': false,
+                    'expired': false
+                }
+            };
+            
+            const newItemRef = userRef.child('pantryItems').push();
+            updates[newItemRef.key] = newItem;
+        });
+        
+        userRef.child('pantryItems').update(updates).then(() => {
+            document.getElementById('syncStatusReceipt').textContent = `✅ Synced to ${fullMobile}`;
+            
+            products.forEach(p => {
+                if (p.purchased) {
+                    p.synced = true;
+                    p.purchased = false;
+                }
+            });
+            saveData();
+            updateUI();
+        });
+    }).catch(error => {
+        console.error('Sync error:', error);
+    });
+}
+
+// ================================================================
 // RECEIPT MODAL
 // ================================================================
 let lastReceipt = { items: [], total: 0, savings: 0, count: 0 };
 
-function showReceipt(items, total, savings, count) {
+function showReceipt(items, total, savings, count, mobile) {
     lastReceipt = { items, total, savings, count };
     
     const modal = document.getElementById('receiptModal');
     const container = document.getElementById('receiptItems');
     document.getElementById('receiptTime').textContent = formatTime(new Date());
+    document.getElementById('syncStatusReceipt').textContent = `✅ Syncing to +91${mobile}...`;
     
     let html = '';
     items.forEach(item => {
@@ -547,6 +680,7 @@ function updateUI() {
 
     document.getElementById('productTableBody').innerHTML = tableHtml;
 
+    // Quick Add Buttons
     const quickBtns = document.getElementById('quickAddBtns');
     const activeProducts = products.filter(p => getProductStatus(p).status !== 'expired' && !p.purchased);
     let btnHtml = '';
@@ -557,6 +691,7 @@ function updateUI() {
     });
     quickBtns.innerHTML = btnHtml || '<span style="font-size:11px;color:#888;">No products available</span>';
 
+    // Cart
     const cartContainer = document.getElementById('cartItems');
     if (cart.length === 0) {
         cartContainer.innerHTML = `
@@ -590,6 +725,7 @@ function updateUI() {
     document.getElementById('cartTotal').textContent = `$${cartTotal.toFixed(2)}`;
     document.getElementById('cartDiscount').textContent = `$${cartSavings.toFixed(2)} saved`;
 
+    // Alerts
     const alertsContainer = document.getElementById('alertsContainer');
     if (alertList.length === 0) {
         alertsContainer.innerHTML = `<div class="no-alerts"><i class="fas fa-check-circle"></i> All clear!</div>`;
@@ -608,6 +744,7 @@ function updateUI() {
         alertsContainer.innerHTML = alertHtml;
     }
 
+    // Stats
     document.getElementById('statTotal').textContent = total;
     document.getElementById('statExpiring').textContent = expiringCount;
     document.getElementById('statExpired').textContent = expiredCount;
@@ -622,7 +759,6 @@ function updateUI() {
         `🔄 ${pendingItems.length} items pending sync` : 
         '✅ Synced with Consumer App';
     document.getElementById('syncDot').className = `dot ${pendingItems.length > 0 ? 'offline' : 'online'}`;
-    document.getElementById('customerName').textContent = customerName;
 }
 
 // ================================================================
@@ -733,326 +869,5 @@ function init() {
         updateUI();
     }, 1000);
 }
-// ================================================================
-// SYNC TO CONSUMER APP (Updated with Mobile Number)
-// ================================================================
-function syncToConsumer(mobile) {
-    const purchasedItems = products.filter(p => p.purchased);
-    
-    if (purchasedItems.length === 0) {
-        showToast('📭', 'Nothing to Sync', 'No purchased items to sync.', 'info');
-        return;
-    }
-    
-    // Validate mobile number
-    if (!mobile || mobile.length < 10) {
-        showToast('⚠️', 'Invalid Mobile', 'Please enter a valid 10-digit mobile number.', 'warning');
-        return;
-    }
-    
-    const fullMobile = '+91' + mobile;
-    const shopKey = `shop_purchases_${fullMobile}`;
-    
-    // Get existing items for this mobile
-    let existingItems = JSON.parse(localStorage.getItem(shopKey) || '[]');
-    
-    // Add new items
-    purchasedItems.forEach(item => {
-        existingItems.push({
-            id: item.id,
-            name: item.name,
-            basePrice: item.basePrice,
-            price: item.price || item.basePrice,
-            expiry: item.expiry.toISOString(),
-            purchaseDate: new Date().toISOString(),
-            discount: item.discount || 0,
-            shopName: 'SmartShelf Store'
-        });
-    });
-    
-    localStorage.setItem(shopKey, JSON.stringify(existingItems));
-    
-    // Mark items as synced
-    products.forEach(p => {
-        if (p.purchased) {
-            p.synced = true;
-            p.purchased = false;
-        }
-    });
-    
-    saveData();
-    
-    showToast('✅', 'Synced!', `${purchasedItems.length} items sent to ${fullMobile}`, 'success');
-    addLog('success', `🔄 Synced ${purchasedItems.length} items to ${fullMobile}`);
-    updateUI();
-}
-
-// ================================================================
-// CHECKOUT (Updated with Mobile Number)
-// ================================================================
-function checkout() {
-    if (cart.length === 0) {
-        showToast('⚠️', 'Empty Cart', 'Add some items first!', 'warning');
-        return;
-    }
-
-    const { total, savings } = getCartTotal();
-    const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    
-    // Ask for customer mobile number
-    const mobile = prompt('Enter customer mobile number (10 digits):', '9876543210');
-    
-    if (!mobile || mobile.length < 10) {
-        showToast('⚠️', 'Mobile Required', 'Please enter a valid mobile number.', 'warning');
-        return;
-    }
-    
-    if (!/^\d{10}$/.test(mobile)) {
-        showToast('⚠️', 'Invalid Mobile', 'Please enter only 10 digits.', 'warning');
-        return;
-    }
-    
-    totalRevenue += total;
-    
-    cart.forEach(cartItem => {
-        const product = products.find(p => p.id === cartItem.id);
-        if (product) {
-            product.purchased = true;
-            product.price = cartItem.price;
-            product.discount = cartItem.discount;
-        }
-    });
-    
-    saveData();
-    showReceipt(cart, total, savings, itemCount, mobile);
-    addLog('success', `💰 Sale: $${total.toFixed(2)} (${itemCount} items) for ${mobile}`);
-    showToast('✅', 'Sale Complete!', `Total: $${total.toFixed(2)} | Saved: $${savings.toFixed(2)}`, 'success');
-    
-    // Sync to consumer
-    setTimeout(() => {
-        syncToConsumer(mobile);
-    }, 1000);
-    
-    cart = [];
-    updateUI();
-}
-
-// ================================================================
-// RECEIPT MODAL (Updated with Mobile)
-// ================================================================
-function showReceipt(items, total, savings, count, mobile) {
-    lastReceipt = { items, total, savings, count };
-    
-    const modal = document.getElementById('receiptModal');
-    const container = document.getElementById('receiptItems');
-    document.getElementById('receiptTime').textContent = formatTime(new Date());
-    
-    let html = '';
-    html += `
-        <div style="text-align:center;font-size:12px;color:#4caf50;margin-bottom:8px;">
-            ✅ Synced to ${mobile}
-        </div>
-    `;
-    
-    items.forEach(item => {
-        const discountLabel = item.discount > 0 ? ` (${item.discount}% off)` : '';
-        html += `
-            <div class="receipt-item">
-                <span class="item-name">${item.name} x${item.quantity}${discountLabel}</span>
-                <span class="item-price">$${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-    
-    document.getElementById('receiptTotal').textContent = `$${total.toFixed(2)}`;
-    document.getElementById('receiptDiscount').textContent = `$${savings.toFixed(2)} saved`;
-    document.getElementById('receiptItemCount').textContent = count;
-    
-    modal.classList.add('show');
-}
 
 document.addEventListener('DOMContentLoaded', init);
-
-// ================================================================
-// FIREBASE CONFIG - YOUR CONFIG HERE
-// ================================================================
-const firebaseConfig = {
-    apiKey: "AIzaSyDxfTPMySvXDNkAF0-ruIvGhiV23H1GcVs",
-    authDomain: "myproject-facd5.firebaseapp.com",
-    databaseURL: "https://myproject-facd5-default-rtdb.firebaseio.com",
-    projectId: "myproject-facd5",
-    storageBucket: "myproject-facd5.firebasestorage.app",
-    messagingSenderId: "967008076076",
-    appId: "1:967008076076:web:e34160a72525210ba1ec89",
-    measurementId: "G-B7EX225NTR"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-// ================================================================
-// SYNC TO CONSUMER APP (Using Firebase)
-// ================================================================
-function syncToConsumer(mobile) {
-    const purchasedItems = products.filter(p => p.purchased);
-    
-    if (purchasedItems.length === 0) {
-        showToast('📭', 'Nothing to Sync', 'No purchased items to sync.', 'info');
-        return;
-    }
-    
-    // Validate mobile number
-    if (!mobile || mobile.length < 10) {
-        showToast('⚠️', 'Invalid Mobile', 'Please enter a valid 10-digit mobile number.', 'warning');
-        return;
-    }
-    
-    const fullMobile = '+91' + mobile;
-    const userRef = db.ref('users/' + fullMobile);
-    
-    // First, check if user exists
-    userRef.once('value').then(snapshot => {
-        const userData = snapshot.val();
-        
-        if (!userData) {
-            // Create new user
-            userRef.set({
-                name: 'User',
-                mobile: fullMobile,
-                registeredAt: Date.now(),
-                pantryItems: {}
-            });
-        }
-        
-        // Now add purchased items to pantry
-        const updates = {};
-        purchasedItems.forEach(item => {
-            const newItem = {
-                id: item.id,
-                name: item.name,
-                price: item.price || item.basePrice,
-                expiry: item.expiry.toISOString(),
-                purchaseDate: new Date().toISOString(),
-                discount: item.discount || 0,
-                syncedFromShop: true,
-                isConsumed: false,
-                alertSent: {
-                    '7d': false,
-                    '3d': false,
-                    '1d': false,
-                    'expired': false
-                }
-            };
-            
-            // Push to Firebase using unique key
-            const newItemRef = userRef.child('pantryItems').push();
-            updates[newItemRef.key] = newItem;
-        });
-        
-        // Save all items at once
-        userRef.child('pantryItems').update(updates).then(() => {
-            showToast('✅', 'Synced!', `${purchasedItems.length} items sent to ${fullMobile}`, 'success');
-            addLog('success', `🔄 Synced ${purchasedItems.length} items to ${fullMobile}`);
-            
-            // Mark items as synced
-            products.forEach(p => {
-                if (p.purchased) {
-                    p.synced = true;
-                    p.purchased = false;
-                }
-            });
-            saveData();
-            updateUI();
-        });
-    }).catch(error => {
-        console.error('Sync error:', error);
-        showToast('❌', 'Sync Failed', 'Could not connect to server.', 'danger');
-    });
-}
-
-// ================================================================
-// CHECKOUT (Updated with Firebase Sync)
-// ================================================================
-function checkout() {
-    if (cart.length === 0) {
-        showToast('⚠️', 'Empty Cart', 'Add some items first!', 'warning');
-        return;
-    }
-
-    const { total, savings } = getCartTotal();
-    const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    
-    // Ask for customer mobile number
-    const mobile = prompt('Enter customer mobile number (10 digits):', '9876543210');
-    
-    if (!mobile || mobile.length < 10) {
-        showToast('⚠️', 'Mobile Required', 'Please enter a valid mobile number.', 'warning');
-        return;
-    }
-    
-    if (!/^\d{10}$/.test(mobile)) {
-        showToast('⚠️', 'Invalid Mobile', 'Please enter only 10 digits.', 'warning');
-        return;
-    }
-    
-    totalRevenue += total;
-    
-    cart.forEach(cartItem => {
-        const product = products.find(p => p.id === cartItem.id);
-        if (product) {
-            product.purchased = true;
-            product.price = cartItem.price;
-            product.discount = cartItem.discount;
-        }
-    });
-    
-    saveData();
-    showReceipt(cart, total, savings, itemCount, mobile);
-    addLog('success', `💰 Sale: $${total.toFixed(2)} (${itemCount} items) for ${mobile}`);
-    showToast('✅', 'Sale Complete!', `Total: $${total.toFixed(2)} | Saved: $${savings.toFixed(2)}`, 'success');
-    
-    // Sync to Firebase
-    setTimeout(() => {
-        syncToConsumer(mobile);
-    }, 1000);
-    
-    cart = [];
-    updateUI();
-}
-
-// ================================================================
-// RECEIPT MODAL (Updated with Mobile)
-// ================================================================
-function showReceipt(items, total, savings, count, mobile) {
-    lastReceipt = { items, total, savings, count };
-    
-    const modal = document.getElementById('receiptModal');
-    const container = document.getElementById('receiptItems');
-    document.getElementById('receiptTime').textContent = formatTime(new Date());
-    
-    let html = '';
-    html += `
-        <div style="text-align:center;font-size:12px;color:#4caf50;margin-bottom:8px;">
-            ✅ Synced to ${mobile}
-        </div>
-    `;
-    
-    items.forEach(item => {
-        const discountLabel = item.discount > 0 ? ` (${item.discount}% off)` : '';
-        html += `
-            <div class="receipt-item">
-                <span class="item-name">${item.name} x${item.quantity}${discountLabel}</span>
-                <span class="item-price">$${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-    
-    document.getElementById('receiptTotal').textContent = `$${total.toFixed(2)}`;
-    document.getElementById('receiptDiscount').textContent = `$${savings.toFixed(2)} saved`;
-    document.getElementById('receiptItemCount').textContent = count;
-    
-    modal.classList.add('show');
-}
