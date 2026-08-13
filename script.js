@@ -871,3 +871,164 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ================================================================
+// BARCODE SCANNER FUNCTIONS
+// ================================================================
+
+let barcodeScanner = null;
+let scannedData = null;
+
+function openBarcodeScanner() {
+    const modal = document.getElementById('barcodeScannerModal');
+    modal.style.display = 'flex';
+    
+    setTimeout(() => {
+        startBarcodeScanner();
+    }, 500);
+}
+
+function closeBarcodeScanner() {
+    stopBarcodeScanner();
+    document.getElementById('barcodeScannerModal').style.display = 'none';
+}
+
+function startBarcodeScanner() {
+    const readerElement = document.getElementById('barcode-reader');
+    
+    if (barcodeScanner) {
+        barcodeScanner.clear();
+        barcodeScanner = null;
+    }
+    
+    try {
+        barcodeScanner = new Html5Qrcode("barcode-reader");
+        
+        const config = {
+            fps: 15,
+            qrbox: { width: 300, height: 150 },
+            aspectRatio: 2.0
+        };
+        
+        barcodeScanner.start(
+            { facingMode: "environment" },
+            config,
+            onBarcodeSuccess,
+            onBarcodeError
+        );
+        
+        showToast('📷', 'Scanner Started', 'Scanning barcode...', 'info');
+    } catch (err) {
+        console.error('Scanner error:', err);
+        showToast('⚠️', 'Camera Error', 'Please enter data manually.', 'warning');
+        readerElement.innerHTML = `
+            <div style="text-align:center;padding:30px 0;color:#888;">
+                <i class="fas fa-camera" style="font-size:40px;display:block;margin-bottom:10px;"></i>
+                <p>Camera not available. Use manual entry.</p>
+            </div>
+        `;
+    }
+}
+
+function stopBarcodeScanner() {
+    if (barcodeScanner) {
+        try {
+            barcodeScanner.stop().then(() => {
+                barcodeScanner.clear();
+                barcodeScanner = null;
+            }).catch(err => console.error('Stop error:', err));
+        } catch(e) {
+            console.error('Stop error:', e);
+        }
+    }
+}
+
+function onBarcodeSuccess(decodedText, decodedResult) {
+    // Parse the barcode data (you can customize this)
+    // Example: "Milk,4.99,7" or JSON format
+    try {
+        // Try JSON first
+        const data = JSON.parse(decodedText);
+        scannedData = {
+            name: data.name || data.product || 'Product',
+            price: parseFloat(data.price) || parseFloat(data.cost) || 5.00,
+            expiryDays: parseInt(data.expiry_days) || parseInt(data.days) || 7
+        };
+    } catch (e) {
+        // Try CSV format: "Name,Price,ExpiryDays"
+        const parts = decodedText.split(',').map(s => s.trim());
+        if (parts.length >= 2) {
+            scannedData = {
+                name: parts[0] || 'Product',
+                price: parseFloat(parts[1]) || 5.00,
+                expiryDays: parseInt(parts[2]) || 7
+            };
+        } else {
+            // Just use the text as name
+            scannedData = {
+                name: decodedText.trim() || 'Product',
+                price: 5.00,
+                expiryDays: 7
+            };
+        }
+    }
+    
+    // Show preview
+    showScannedPreview(scannedData);
+    
+    // Stop scanner
+    stopBarcodeScanner();
+    closeBarcodeScanner();
+    
+    showToast('✅', 'Scanned!', `Product: ${scannedData.name}`, 'success');
+}
+
+function onBarcodeError(error) {
+    // Silent fail - just keep scanning
+}
+
+function showScannedPreview(data) {
+    const preview = document.getElementById('scannedDataPreview');
+    document.getElementById('scannedName').textContent = data.name;
+    document.getElementById('scannedPrice').textContent = `$${data.price.toFixed(2)}`;
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + data.expiryDays);
+    document.getElementById('scannedExpiry').textContent = expiryDate.toLocaleDateString();
+    
+    preview.style.display = 'block';
+}
+
+function applyScannedData() {
+    if (!scannedData) return;
+    
+    document.getElementById('productName').value = scannedData.name;
+    document.getElementById('productPrice').value = scannedData.price.toFixed(2);
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + scannedData.expiryDays);
+    document.getElementById('expiryDateTime').value = expiryDate.toISOString().slice(0, 16);
+    
+    clearScannedData();
+    showToast('📋', 'Applied!', 'Scanned data applied to form.', 'success');
+}
+
+function clearScannedData() {
+    document.getElementById('scannedDataPreview').style.display = 'none';
+    scannedData = null;
+}
+
+function manualBarcodeInput() {
+    closeBarcodeScanner();
+    const input = prompt('Enter barcode data (Format: Name,Price,ExpiryDays):', 'Milk,4.99,7');
+    if (input) {
+        const parts = input.split(',').map(s => s.trim());
+        scannedData = {
+            name: parts[0] || 'Product',
+            price: parseFloat(parts[1]) || 5.00,
+            expiryDays: parseInt(parts[2]) || 7
+        };
+        showScannedPreview(scannedData);
+        showToast('📝', 'Manual Entry', `Product: ${scannedData.name}`, 'info');
+    }
+}
