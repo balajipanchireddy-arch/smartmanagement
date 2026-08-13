@@ -714,3 +714,20 @@ body {
     .header-right { flex-direction: column; width: 100%; }
     .stats-container { grid-template-columns: 1fr 1fr; }
 }
+.qr-btn {
+    padding: 7px 16px;
+    background: linear-gradient(135deg, #00695c, #00897b);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.3s;
+    min-width: 80px;
+}
+.qr-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 105, 92, 0.3);
+}
+.qr-btn i { margin-right: 5px; }
